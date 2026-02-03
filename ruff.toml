@@ -1,0 +1,56 @@
+extend-exclude = ["third_party"]
+line-length = 120
+indent-width = 4
+
+[format]
+quote-style = "double"
+docstring-code-format = true
+
+[lint]
+select = [
+    "B",
+    "C4",
+    "DTZ",
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "FBT",
+    "FURB",
+    "I",
+    "ICN",
+    "ISC",
+    "LOG",
+    "N",
+    "PD",
+    "PERF",
+    "PIE",
+    "PLC",
+    "PLE",
+    "PLR1",
+    "PLR5",
+    "PLW",
+    "PT",
+    "PTH",
+    "Q",
+    "RET",
+    "RUF",
+    "SIM",
+    "SLF",
+    "T10",
+    "T20",
+    "UP",
+    "W",
+]
+ignore = [
+    "F722",   # Conflicts with array typing.
+    "N806",   # Sometimes use of uppercase variable names is acceptable.
+    "N812",   # Import as uppercase is acceptable.
+    "T201",   # We use print statements.
+    "PD008",  # Lots of false positives.
+    "ISC001", # Disabling to support ruff format.
+]
+
+[lint.isort]
+force-single-line = true
+force-sort-within-sections = true
