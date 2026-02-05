@@ -19,7 +19,7 @@ class Leap(Node):
         *,
         context=None,
         cli_args=None,
-        namespace="leap",
+        namespace="leap_hand",
         use_global_arguments=True,
         enable_rosout=True,
         start_parameter_services=True,
@@ -48,6 +48,7 @@ class Leap(Node):
         self.kI = self.declare_parameter("kI", 0.0).get_parameter_value().double_value
         self.kD = self.declare_parameter("kD", 200.0).get_parameter_value().double_value
         self.goal_current = self.declare_parameter("goal_current", 500.0).get_parameter_value().double_value
+        self.joint_prefix = self.declare_parameter("joint_prefix", "leap_hand_").get_parameter_value().string_value
 
         self.qos_profile = QoSProfile(depth=10)
         self.qos_profile.reliability = QoSReliabilityPolicy.RELIABLE
@@ -92,9 +93,12 @@ class Leap(Node):
     def timer_callback(self):
         # Publish joint positions
         state = JointState()
+        state.header.stamp = self.get_clock().now().to_msg()
+        state.header.frame_id = self.get_namespace()
         state.position = (self.driver.joint_positions - np.pi).tolist()
         state.velocity = self.driver.joint_velocities.tolist()
         state.effort = self.driver.joint_currents.tolist()
+        state.name = [f"{self.joint_prefix}{i}" for i in range(16)]
         self.publisher.publish(state)
 
 
