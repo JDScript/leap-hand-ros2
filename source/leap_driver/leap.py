@@ -3,10 +3,7 @@
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy
-from rclpy.qos import QoSHistoryPolicy
 from rclpy.qos import QoSProfile
-from rclpy.qos import QoSReliabilityPolicy
 from sensor_msgs.msg import JointState
 
 from leap_driver.dynamixel.driver import DynamixelDriver
@@ -51,20 +48,18 @@ class Leap(Node):
         self.joint_prefix = self.declare_parameter("joint_prefix", "leap_hand_").get_parameter_value().string_value
 
         self.qos_profile = QoSProfile(depth=10)
-        self.qos_profile.reliability = QoSReliabilityPolicy.RELIABLE
-        self.qos_profile.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL
-        self.qos_profile.history = QoSHistoryPolicy.KEEP_LAST
 
         # Initialize Driver
         self.driver = DynamixelDriver(
             servo_ids=list(range(16)),
             port=self.port,
             baud_rate=self.baud_rate,
+            maintain_torque_on_exit=True,
         )
-        self.driver.set_position_p_gains([self.kP * 0.75, self.kP, self.kP, self.kP] * 4)
-        self.driver.set_position_i_gains([self.kI * 0.75, self.kI, self.kI, self.kI] * 4)
-        self.driver.set_position_d_gains([self.kD * 0.75, self.kD, self.kD, self.kD] * 4)
-        self.driver.set_goal_currents([self.goal_current] * 16)
+        self.driver.position_p_gains = [self.kP * 0.75, self.kP, self.kP, self.kP] * 4
+        self.driver.position_i_gains = [self.kI * 0.75, self.kI, self.kI, self.kI] * 4
+        self.driver.position_d_gains = [self.kD * 0.75, self.kD, self.kD, self.kD] * 4
+        self.driver.goal_currents = [self.goal_current] * 16
         self.driver.torque_enabled = True
 
         self.driver.goal_positions = np.zeros(16) + np.pi
@@ -94,7 +89,6 @@ class Leap(Node):
         # Publish joint positions
         state = JointState()
         state.header.stamp = self.get_clock().now().to_msg()
-        state.header.frame_id = self.get_namespace()
         state.position = (self.driver.joint_positions - np.pi).tolist()
         state.velocity = self.driver.joint_velocities.tolist()
         state.effort = self.driver.joint_currents.tolist()
