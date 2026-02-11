@@ -80,7 +80,7 @@ class Leap(Node):
         )
 
         # Timers
-        self.timer = self.create_timer(0.0167, self.timer_callback)
+        self.timer = self.create_timer(0.0083, self.timer_callback)
 
     def goal_positions_callback(self, msg: JointState):
         self.driver.goal_positions = np.array(msg.position) + np.pi

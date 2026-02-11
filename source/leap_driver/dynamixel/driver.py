@@ -52,9 +52,9 @@ class DynamixelDriver:
         pos_scale: float = DEFAULT_POS_SCALE,
         vel_scale: float = DEFAULT_VEL_SCALE,
         cur_scale: float = DEFAULT_CUR_SCALE,
-        reading_interval: float = 0.0167,  # 60 Hz
+        reading_interval: float = 1e-3 / 240,  # 240 Hz
         reading_retries: int = 5,
-        writing_interval: float = 0.0167,  # 60 Hz
+        writing_interval: float = 1e-3 / 120,  # 120 Hz
         writing_retries: int = 3,
         maintain_torque_on_exit: bool = False,
     ):
@@ -224,19 +224,13 @@ class DynamixelDriver:
             for i, servo_id in enumerate(self.servo_ids):
                 if self._group_sync_read.isAvailable(servo_id, ADDR_PRESENT_POS_VEL_CUR, SIZE_PRESENT_POS_VEL_CUR):
                     positions[i] = np.int32(
-                        np.uint32(
-                            self._group_sync_read.getData(servo_id, ADDR_PRESENT_POSITION, SIZE_PRESENT_POSITION)
-                        )
+                        np.uint32(self._group_sync_read.getData(servo_id, ADDR_PRESENT_POSITION, SIZE_PRESENT_POSITION))
                     )
                     velocities[i] = np.int32(
-                        np.uint32(
-                            self._group_sync_read.getData(servo_id, ADDR_PRESENT_VELOCITY, SIZE_PRESENT_VELOCITY)
-                        )
+                        np.uint32(self._group_sync_read.getData(servo_id, ADDR_PRESENT_VELOCITY, SIZE_PRESENT_VELOCITY))
                     )
                     currents[i] = np.int32(
-                        np.uint32(
-                            self._group_sync_read.getData(servo_id, ADDR_PRESENT_CURRENT, SIZE_PRESENT_CURRENT)
-                        )
+                        np.uint32(self._group_sync_read.getData(servo_id, ADDR_PRESENT_CURRENT, SIZE_PRESENT_CURRENT))
                     )
 
             self._joint_positions = positions
