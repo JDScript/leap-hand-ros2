@@ -41,11 +41,14 @@ class Leap(Node):
 
         self.port = self.declare_parameter("port", "/dev/ttyUSB0").get_parameter_value().string_value
         self.baud_rate = self.declare_parameter("baudrate", 4_000_000).get_parameter_value().integer_value
-        self.kP = self.declare_parameter("kP", 600.0).get_parameter_value().double_value
+        self.kP = self.declare_parameter("kP", 800.0).get_parameter_value().double_value
         self.kI = self.declare_parameter("kI", 0.0).get_parameter_value().double_value
         self.kD = self.declare_parameter("kD", 200.0).get_parameter_value().double_value
         self.goal_current = self.declare_parameter("goal_current", 500.0).get_parameter_value().double_value
         self.joint_prefix = self.declare_parameter("joint_prefix", "leap_hand_").get_parameter_value().string_value
+        self.ignore_missing_servos = (
+            self.declare_parameter("ignore_missing_servos", False).get_parameter_value().bool_value
+        )
 
         self.qos_profile = QoSProfile(depth=10)
 
@@ -55,6 +58,7 @@ class Leap(Node):
             port=self.port,
             baud_rate=self.baud_rate,
             maintain_torque_on_exit=True,
+            ignore_missing_servos=self.ignore_missing_servos,
         )
         self.driver.position_p_gains = [self.kP * 0.75, self.kP, self.kP, self.kP] * 4
         self.driver.position_i_gains = [self.kI * 0.75, self.kI, self.kI, self.kI] * 4

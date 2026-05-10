@@ -57,6 +57,7 @@ class DynamixelDriver:
         writing_interval: float = 1e-3 / 120,  # 120 Hz
         writing_retries: int = 3,
         maintain_torque_on_exit: bool = False,
+        ignore_missing_servos: bool = False,
     ):
         self.servo_ids = servo_ids
         self.port = port
@@ -69,6 +70,8 @@ class DynamixelDriver:
         self.writing_interval = writing_interval
         self.writing_retries = writing_retries
         self.maintain_torque_on_exit = maintain_torque_on_exit
+        self.ignore_missing_servos = ignore_missing_servos
+        self._missing_servo_ids: set[int] = set()
 
         self._port_handler = PortHandler(port)
         self._packet_handler = Protocol2PacketHandler()
@@ -114,7 +117,20 @@ class DynamixelDriver:
         if not self._port_handler.setBaudRate(baud_rate):
             raise RuntimeError(f"Failed to set baud rate {baud_rate}")
 
+        # Probe servos and record those that don't respond to ping
         for servo_id in servo_ids:
+            if not self._ping_servo(servo_id):
+                if self.ignore_missing_servos:
+                    logger.warning(
+                        f"Dynamixel ID {servo_id} did not respond to ping; ignoring this servo."
+                    )
+                    self._missing_servo_ids.add(servo_id)
+                else:
+                    raise RuntimeError(f"Dynamixel ID {servo_id} did not respond to ping")
+
+        for servo_id in servo_ids:
+            if servo_id in self._missing_servo_ids:
+                continue
             if not self._group_sync_read.addParam(servo_id):
                 raise RuntimeError(f"Failed to add servo ID {servo_id} to sync read group")
             if not self._group_sync_read_torque.addParam(servo_id):
@@ -122,12 +138,18 @@ class DynamixelDriver:
 
         # Reboot
         for servo_id in servo_ids:
+            if servo_id in self._missing_servo_ids:
+                continue
             self._packet_handler.reboot(self._port_handler, servo_id)
 
         self._stop_thread = Event()
         self._start_threads()
 
         atexit.register(self.close)
+
+    def _ping_servo(self, servo_id: int) -> bool:
+        _, comm_result, dxl_error = self._packet_handler.ping(self._port_handler, servo_id)
+        return comm_result == COMM_SUCCESS and dxl_error == 0
 
     def _torque_maintain_loop(self):
         while not self._stop_thread.is_set():
@@ -140,6 +162,8 @@ class DynamixelDriver:
             position_d_gains = [None] * len(self.servo_ids)
             goal_currents = [None] * len(self.servo_ids)
             for servo_id in self.servo_ids:
+                if servo_id in self._missing_servo_ids:
+                    continue
                 if self._group_sync_read_torque.isAvailable(servo_id, ADDR_TORQUE_ENABLE, SIZE_TORQUE_ENABLE):
                     torque_status = self._group_sync_read_torque.getData(
                         servo_id, ADDR_TORQUE_ENABLE, SIZE_TORQUE_ENABLE
@@ -180,6 +204,8 @@ class DynamixelDriver:
 
             error_ids = []
             for servo_id, position in zip(self.servo_ids, self.goal_positions, strict=True):
+                if servo_id in self._missing_servo_ids:
+                    continue
                 position_value = int(position / self.pos_scale)
                 param_goal_position = [
                     DXL_LOBYTE(DXL_LOWORD(position_value)),
@@ -222,6 +248,8 @@ class DynamixelDriver:
             currents = np.zeros_like(self._joint_currents)
 
             for i, servo_id in enumerate(self.servo_ids):
+                if servo_id in self._missing_servo_ids:
+                    continue
                 if self._group_sync_read.isAvailable(servo_id, ADDR_PRESENT_POS_VEL_CUR, SIZE_PRESENT_POS_VEL_CUR):
                     positions[i] = np.int32(
                         np.uint32(self._group_sync_read.getData(servo_id, ADDR_PRESENT_POSITION, SIZE_PRESENT_POSITION))
@@ -321,6 +349,8 @@ class DynamixelDriver:
             if gain is None:
                 gains[dxl_id] = self._position_p_gains[dxl_id]  # Keep current gain if None is provided
                 continue
+            if dxl_id in self._missing_servo_ids:
+                continue
             self._write_with_retry(
                 self._packet_handler.write2ByteTxRx,
                 self._port_handler,
@@ -343,6 +373,8 @@ class DynamixelDriver:
         for dxl_id, gain in zip(self.servo_ids, gains, strict=True):
             if gain is None:
                 gains[dxl_id] = self._position_i_gains[dxl_id]  # Keep current gain if None is provided
+                continue
+            if dxl_id in self._missing_servo_ids:
                 continue
             self._write_with_retry(
                 self._packet_handler.write2ByteTxRx,
@@ -367,6 +399,8 @@ class DynamixelDriver:
             if gain is None:
                 gains[dxl_id] = self._position_d_gains[dxl_id]  # Keep current gain if None is provided
                 continue
+            if dxl_id in self._missing_servo_ids:
+                continue
             self._write_with_retry(
                 self._packet_handler.write2ByteTxRx,
                 self._port_handler,
@@ -389,6 +423,8 @@ class DynamixelDriver:
         for dxl_id, current in zip(self.servo_ids, currents, strict=True):
             if current is None:
                 currents[dxl_id] = self._goal_currents[dxl_id]  # Keep current if None is provided
+                continue
+            if dxl_id in self._missing_servo_ids:
                 continue
             self._write_with_retry(
                 self._packet_handler.write2ByteTxRx,
@@ -413,6 +449,8 @@ class DynamixelDriver:
             enable (bool): True to enable torque, False to disable.
         """
         for dxl_id in self.servo_ids:
+            if dxl_id in self._missing_servo_ids:
+                continue
             self._set_servo_torque(dxl_id, enable=enable)
 
         self._torque_enabled = enable
